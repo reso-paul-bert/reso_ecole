@@ -1,0 +1,37 @@
+{
+	// Qui a le droit d'attribuer quels tags (uniquement les admins du tailnet)
+	"tagOwners": {
+		"tag:admin": ["autogroup:admin"],
+		"tag:eleve": ["autogroup:admin"],
+	},
+
+	"acls": [
+		// Le PC admin peut initier une connexion vers TOUS les postes élèves, sur tous les ports.
+		// Aucune règle symétrique n'existe dans l'autre sens => par défaut (deny-all implicite
+		// de Tailscale), les postes élèves NE PEUVENT PAS initier de connexion vers le PC admin.
+		{
+			"action": "accept",
+			"src":    ["tag:admin"],
+			"dst":    ["tag:eleve:*"],
+		},
+
+		// (Optionnel) si les postes élèves doivent aussi se joindre entre eux (partage de fichiers
+		// en classe, etc.). Supprime ce bloc si tu veux les isoler complètement les uns des autres.
+		// {
+		//     "action": "accept",
+		//     "src":    ["tag:eleve"],
+		//     "dst":    ["tag:eleve:*"],
+		// },
+	],
+
+	// Autorise le PC admin à se connecter en SSH (via Tailscale SSH) aux postes élèves,
+	// utile pour déployer/exécuter le script de création des comptes sans configurer WinRM.
+	"ssh": [
+		{
+			"action": "accept",
+			"src":    ["tag:admin"],
+			"dst":    ["tag:eleve"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+	],
+}

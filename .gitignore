@@ -1,0 +1,17 @@
+# Identifiants eleves en clair - NE JAMAIS versionner
+eleves_paulbert.csv
+eleves_paulbert_ori.csv
+
+# Configuration locale du parc (IP Tailscale des postes)
+renommage.csv
+renommage_ori.csv
+
+# Identifiants admin chiffres (lies a une machine + un compte, inutilisables ailleurs)
+admin_credential.xml
+
+# Travaux d'eleves recuperes (donnees personnelles de mineurs)
+Devoirs_Recuperes/
+
+# Sorties generees
+dashboard.html
+Controle_Postes/
