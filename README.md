@@ -63,7 +63,7 @@ la creation des comptes vient en dernier : un profil deja cree n'herite pas retr
 | Script | Role |
 |---|---|
 | `dashboard_classe.ps1` | Tableau de bord HTML auto-actualise : qui est connecte, logiciels ouverts, devoirs rendus. Cree aussi des raccourcis de prise de controle (shadow RDP, sans deconnecter l'eleve). |
-| `recuperer_devoirs.ps1` | Rapatrie les depots des postes vers `Devoirs_Recuperes/<Poste>/` et nettoie la source. |
+| `recuperer_devoirs.ps1` | Rapatrie les depots vers `Devoirs_Recuperes/<Poste>/<Eleve>/` et nettoie la source. |
 | `redemarrer_pcs.ps1` | Redemarre tous les postes. |
 | `supprimer_utilisateurs.ps1` | Supprime comptes et profils (remise a zero). Detruit les fichiers des profils. |
 

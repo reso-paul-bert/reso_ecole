@@ -150,8 +150,8 @@ function Lire-Etat {
 # ---------------------------------------------------------------------------
 # $eleve vide = tous les eleves du poste ; sinon uniquement ce compte.
 function Recuperer-Devoirs($ip, $nomPoste, $eleve) {
-    $destination = Join-Path $dossierDevoirs $nomPoste
-    New-Item -Path $destination -ItemType Directory -Force | Out-Null
+    $racineDestination = Join-Path $dossierDevoirs $nomPoste
+    New-Item -Path $racineDestination -ItemType Directory -Force | Out-Null
 
     $copies = 0
     try {
@@ -168,6 +168,11 @@ function Recuperer-Devoirs($ip, $nomPoste, $eleve) {
         $aSupprimer = @()
         foreach ($fichier in $fichiers) {
             try {
+                # Le dossier parent du fichier dans C:\Depots porte le nom du compte eleve
+                $nomEleve = Split-Path (Split-Path $fichier.FullName -Parent) -Leaf
+                $destination = Join-Path $racineDestination $nomEleve
+                New-Item -Path $destination -ItemType Directory -Force | Out-Null
+
                 Copy-Item -FromSession $session -Path $fichier.FullName -Destination $destination -Force -ErrorAction Stop
                 $chemin = Join-Path $destination $fichier.Name
                 if ((Test-Path $chemin) -and (Get-Item $chemin).Length -eq $fichier.Length) {

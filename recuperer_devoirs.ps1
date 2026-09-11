@@ -45,8 +45,13 @@ foreach ($ligne in $postes) {
         $aSupprimer = @()
         foreach ($fichier in $fichiers) {
             try {
-                Copy-Item -FromSession $session -Path $fichier.FullName -Destination $destinationPoste -Force -ErrorAction Stop
-                $chemin = Join-Path $destinationPoste $fichier.Name
+                # Le dossier parent du fichier dans C:\Depots porte le nom du compte élève
+                $nomEleve = Split-Path (Split-Path $fichier.FullName -Parent) -Leaf
+                $destination = Join-Path $destinationPoste $nomEleve
+                New-Item -Path $destination -ItemType Directory -Force | Out-Null
+
+                Copy-Item -FromSession $session -Path $fichier.FullName -Destination $destination -Force -ErrorAction Stop
+                $chemin = Join-Path $destination $fichier.Name
                 if ((Test-Path $chemin) -and (Get-Item $chemin).Length -eq $fichier.Length) {
                     $copies++
                     $aSupprimer += $fichier.FullName
