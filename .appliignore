@@ -1,0 +1,49 @@
+# Applications masquees dans le tableau de bord.
+# Un nom de processus par ligne, SANS le .exe. Les lignes vides et celles commencant
+# par # sont ignorees. La casse n'a pas d'importance.
+# Le fichier est relu a chaque actualisation : inutile de relancer le tableau de bord.
+
+# --- Interface et services Windows ---
+explorer
+dwm
+csrss
+winlogon
+fontdrvhost
+sihost
+ctfmon
+taskhostw
+svchost
+RuntimeBroker
+ShellExperienceHost
+StartMenuExperienceHost
+SearchUI
+SearchApp
+ApplicationFrameHost
+TextInputHost
+LockApp
+UserOOBEBroker
+SystemSettingsBroker
+dllhost
+conhost
+smartscreen
+backgroundTaskHost
+SecurityHealthSystray
+rdpclip
+audiodg
+WmiPrvSE
+sppsvc
+TabTip
+msedgewebview2
+
+# --- Pilotes et utilitaires constructeur ---
+RAVCpl64
+SynTPEnh
+SynTPHelper
+
+# --- Services installes ---
+OneDrive
+OneDrive.Sync.Service
+tailscale-ipn
+
+# LibreOffice apparait sous "soffice" ; "soffice.bin" est le meme programme en double
+soffice.bin

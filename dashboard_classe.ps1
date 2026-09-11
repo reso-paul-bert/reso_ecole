@@ -58,7 +58,19 @@ foreach ($machine in $machines) {
 # ---------------------------------------------------------------------------
 # Collecte distante
 # ---------------------------------------------------------------------------
+$fichierExclusions = Join-Path $dossierScript ".appliignore"
+
+# Relu a chaque actualisation : modifier .appliignore ne demande pas de relancer le tableau de bord.
+function Lire-Exclusions {
+    if (-not (Test-Path $fichierExclusions)) { return @() }
+    return Get-Content $fichierExclusions -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -ne "" -and -not $_.StartsWith("#") }
+}
+
 $scriptEtat = {
+    param($exclus)
+
     $sessions = @()
     $lignesQuser = @()
     try { $lignesQuser = quser } catch { }
@@ -75,15 +87,6 @@ $scriptEtat = {
 
     $actif = $sessions | Where-Object { $_.Etat -match "Actif|Active" } | Select-Object -First 1
     $nomActif = if ($actif) { $actif.Utilisateur } else { "" }
-
-    # Processus systeme et composants de l'interface Windows, sans interet pour la supervision
-    $exclus = @(
-        'explorer','dwm','csrss','winlogon','fontdrvhost','sihost','ctfmon','taskhostw',
-        'RuntimeBroker','ShellExperienceHost','StartMenuExperienceHost','SearchUI','SearchApp',
-        'ApplicationFrameHost','TextInputHost','LockApp','UserOOBEBroker','SystemSettingsBroker',
-        'dllhost','conhost','smartscreen','backgroundTaskHost','SecurityHealthSystray',
-        'rdpclip','audiodg','WmiPrvSE','sppsvc','tabtip','msedgewebview2','TabTip'
-    )
 
     $apps = @()
     if ($nomActif -ne "") {
@@ -115,6 +118,7 @@ $scriptEtat = {
 
 function Lire-Etat {
     $resultats = @()
+    $exclus = @(Lire-Exclusions)
 
     foreach ($machine in $machines) {
         $ip = $machine.PosteActuel.Trim()
@@ -128,7 +132,7 @@ function Lire-Etat {
         }
 
         try {
-            $infos = Invoke-Command -ComputerName $ip -Credential $credential -ScriptBlock $scriptEtat -ErrorAction Stop
+            $infos = Invoke-Command -ComputerName $ip -Credential $credential -ScriptBlock $scriptEtat -ArgumentList (, $exclus) -ErrorAction Stop
             $resultats += [pscustomobject]@{
                 Nom      = $nom
                 Ip       = $ip
