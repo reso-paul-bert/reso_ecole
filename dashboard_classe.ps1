@@ -318,7 +318,19 @@ try {
     $listener.Start()
 } catch {
     Write-Host "ERREUR: impossible d'ouvrir le port $port." -ForegroundColor Red
-    Write-Host "Relance cette fenetre PowerShell EN TANT QU'ADMINISTRATEUR." -ForegroundColor Yellow
+
+    $occupant = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if ($occupant) {
+        $processus = Get-Process -Id $occupant.OwningProcess -ErrorAction SilentlyContinue
+        Write-Host "Le port est deja utilise par : $($processus.ProcessName) (PID $($occupant.OwningProcess))" -ForegroundColor Yellow
+        Write-Host "C'est probablement un tableau de bord deja lance. Pour le fermer :" -ForegroundColor Yellow
+        Write-Host "   Stop-Process -Id $($occupant.OwningProcess) -Force" -ForegroundColor White
+    } else {
+        Write-Host "Aucun processus ne detient ce port : il s'agit donc d'un refus de Windows." -ForegroundColor Yellow
+        Write-Host "Relance cette fenetre PowerShell EN TANT QU'ADMINISTRATEUR." -ForegroundColor Yellow
+    }
     exit 1
 }
 
@@ -332,8 +344,16 @@ $message = ""
 
 Start-Process "http://localhost:$port/"
 
+try {
+
 while ($listener.IsListening) {
-    $contexte = $listener.GetContext()
+    # Attente asynchrone plutot que GetContext() bloquant : celui-ci ne rend jamais la main a
+    # PowerShell, ce qui rendait Ctrl+C inoperant. Ici l'attente se reveille toutes les 300 ms,
+    # laissant l'interruption etre prise en compte.
+    $attente = $listener.BeginGetContext($null, $null)
+    while (-not $attente.AsyncWaitHandle.WaitOne(300)) { }
+    $contexte = $listener.EndGetContext($attente)
+
     $chemin = $contexte.Request.Url.AbsolutePath
     $parametres = $contexte.Request.QueryString
 
@@ -393,4 +413,11 @@ while ($listener.IsListening) {
     $contexte.Response.ContentLength64 = $octets.Length
     $contexte.Response.OutputStream.Write($octets, 0, $octets.Length)
     $contexte.Response.Close()
+}
+
+} finally {
+    # Libere le port meme en cas d'interruption, sinon la prochaine execution le trouve occupe.
+    if ($listener.IsListening) { $listener.Stop() }
+    $listener.Close()
+    Write-Host "Tableau de bord arrete, port $port libere." -ForegroundColor Cyan
 }
