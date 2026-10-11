@@ -97,14 +97,38 @@ if ($echecs.Count -eq 0) {
     icacls $scriptDepot /grant:r "Enseignant:(F)" | Out-Null
     icacls $scriptDepot /grant:r "Eleves:(RX)" | Out-Null
 
-    $shell = New-Object -ComObject WScript.Shell
-    $raccourci = $shell.CreateShortcut("C:\Users\Public\Desktop\Deposer mon devoir.lnk")
-    $raccourci.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $raccourci.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptDepot`""
-    $raccourci.IconLocation = "%SystemRoot%\System32\shell32.dll,45"
-    $raccourci.WindowStyle = 7
-    $raccourci.Save()
+    # Le raccourci n'est PAS pose dans le Public Desktop : il y serait visible par tout le monde,
+    # Enseignant compris. Il est copie dans le profil Default (donc tout futur compte) et dans le
+    # bureau de chaque compte eleve deja existant.
+    Remove-Item "C:\Users\Public\Desktop\Deposer mon devoir.lnk" -Force -ErrorAction SilentlyContinue
 
+    $shell = New-Object -ComObject WScript.Shell
+
+    function New-RaccourciDepot($dossierBureau) {
+        if (-not (Test-Path $dossierBureau)) { return $false }
+        $lnk = $shell.CreateShortcut((Join-Path $dossierBureau "Deposer mon devoir.lnk"))
+        $lnk.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptDepot`""
+        $lnk.IconLocation = "%SystemRoot%\System32\shell32.dll,45"
+        $lnk.WindowStyle = 7
+        $lnk.Save()
+        return $true
+    }
+
+    # Futurs comptes
+    $bureauDefault = "C:\Users\Default\Desktop"
+    New-Item -Path $bureauDefault -ItemType Directory -Force | Out-Null
+    New-RaccourciDepot $bureauDefault | Out-Null
+
+    # Comptes eleves deja crees : identifies par leur appartenance au groupe Eleves
+    $poses = 0
+    $membres = Get-LocalGroupMember -Group "Eleves" -ErrorAction SilentlyContinue
+    foreach ($membre in $membres) {
+        $nomCompte = ($membre.Name -split '\\')[-1]
+        if (New-RaccourciDepot "C:\Users\$nomCompte\Desktop") { $poses++ }
+    }
+
+    "Raccourci pose dans le profil Default et sur $poses bureau(x) eleve(s) sur $(@($membres).Count) compte(s)."
     (icacls $dossier) -join "`n"
 }
 
