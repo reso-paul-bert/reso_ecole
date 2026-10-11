@@ -82,6 +82,12 @@ fichier, ce qui evite qu'un eleve ecrase un travail deja rendu.
 Les droits `WA`/`WEA` (ecriture des attributs) doivent etre accordes explicitement : Explorateur
 et LibreOffice les exigent pour creer un fichier, et ce qui n'est pas accorde reste refuse.
 
+Seules les extensions listees en tete de `_Deposer.ps1` (variable `$extensionsAutorisees`, definie
+dans `configurer_dossier_depot.ps1`) sont acceptees. La verification est faite par le script et pas
+seulement par le filtre du dialogue, car celui-ci se contourne en tapant un nom a la main et ne
+s'applique pas au glisser-deposer. Sans elle, un eleve peut rendre n'importe quel fichier du
+disque, executables compris.
+
 ## Diagnostics
 
 `diagnostiquer_depot.ps1`, `diagnostiquer_recherche.ps1`, `diagnostiquer_fond_ecran.ps1`,

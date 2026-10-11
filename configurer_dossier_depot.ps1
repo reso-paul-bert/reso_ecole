@@ -48,8 +48,20 @@ $scriptDistant = {
     $contenu = @'
 Add-Type -AssemblyName System.Windows.Forms
 
+# Extensions acceptees. Sans cette liste, n'importe quel fichier peut etre rendu, y compris un
+# executable pris ailleurs sur le disque. Ajouter une extension ici si un logiciel de classe
+# produit un format absent.
+$extensionsAutorisees = @(
+    '.odt','.ods','.odp','.odg','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.pdf','.rtf','.txt','.csv',
+    '.jpg','.jpeg','.png','.gif','.bmp','.webp',
+    '.mp3','.wav','.mp4','.avi','.mkv',
+    '.sb3','.sb2','.py','.html','.css','.js','.zip'
+)
+
 $destination = "C:\Depots\$env:USERNAME"
 $fichiers = @()
+
+$filtre = "Devoirs|" + (($extensionsAutorisees | ForEach-Object { "*$_" }) -join ";")
 
 if ($args.Count -gt 0) {
     $fichiers = $args | Where-Object { Test-Path $_ -PathType Leaf }
@@ -57,10 +69,23 @@ if ($args.Count -gt 0) {
     $dialogue = New-Object System.Windows.Forms.OpenFileDialog
     $dialogue.Title = "Choisis le devoir a rendre"
     $dialogue.Multiselect = $true
+    $dialogue.Filter = $filtre
     $dialogue.InitialDirectory = [Environment]::GetFolderPath("Desktop")
     if ($dialogue.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         $fichiers = $dialogue.FileNames
     }
+}
+
+if ($fichiers.Count -eq 0) { return }
+
+# Verification cote script : le filtre du dialogue est contournable (nom tape a la main) et ne
+# s'applique pas du tout au glisser-deposer.
+$refuses = $fichiers | Where-Object { $extensionsAutorisees -notcontains [System.IO.Path]::GetExtension($_).ToLower() }
+$fichiers = $fichiers | Where-Object { $extensionsAutorisees -contains [System.IO.Path]::GetExtension($_).ToLower() }
+
+if ($refuses.Count -gt 0) {
+    $noms = ($refuses | ForEach-Object { [System.IO.Path]::GetFileName($_) }) -join ", "
+    [System.Windows.Forms.MessageBox]::Show("Ce type de fichier ne peut pas etre rendu : $noms", "Fichier refuse", "OK", "Warning") | Out-Null
 }
 
 if ($fichiers.Count -eq 0) { return }
