@@ -53,9 +53,11 @@ Add-Type -AssemblyName System.Windows.Forms
 # produit un format absent.
 $extensionsAutorisees = @(
     '.odt','.ods','.odp','.odg','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.pdf','.rtf','.txt','.csv',
-    '.jpg','.jpeg','.png','.gif','.bmp','.webp',
+    '.jpg','.jpeg','.png','.gif','.bmp','.webp','.svg',
     '.mp3','.wav','.mp4','.avi','.mkv',
-    '.sb3','.sb2','.py','.html','.css','.js','.zip'
+    # Scratch : .sb3 = projet, .sprite3 = lutin exporte, .sb/.sb2 = anciennes versions
+    '.sb3','.sb2','.sb','.sprite3',
+    '.py','.html','.css','.js','.zip'
 )
 
 $destination = "C:\Depots\$env:USERNAME"
