@@ -114,13 +114,34 @@ $scriptEtat = {
     $recu = 0
     $envoye = 0
     try {
+        $compteursPerf = $null
+
         $cartes = Get-NetAdapter -Physical -ErrorAction SilentlyContinue |
             Where-Object { $_.Status -eq "Up" -and $_.InterfaceDescription -notmatch "Tailscale" }
+
         foreach ($carte in $cartes) {
             $stats = Get-NetAdapterStatistics -Name $carte.Name -ErrorAction SilentlyContinue
             if ($stats) {
                 $recu += $stats.ReceivedBytes
                 $envoye += $stats.SentBytes
+                continue
+            }
+
+            # Certains pilotes Wi-Fi anciens n'alimentent pas Get-NetAdapterStatistics (constate
+            # sur Realtek RTL8723AE). Les compteurs de performance TCP/IP, eux, repondent : malgre
+            # leur nom "PerSec", les valeurs brutes sont des totaux cumules depuis le demarrage.
+            if (-not $compteursPerf) {
+                $compteursPerf = Get-CimInstance Win32_PerfRawData_Tcpip_NetworkInterface -ErrorAction SilentlyContinue
+            }
+
+            # Le nom d'instance d'un compteur derive de la description de la carte, avec quelques
+            # caracteres substitues par Windows.
+            $instance = $carte.InterfaceDescription.Replace('(', '[').Replace(')', ']').Replace('#', '_').Replace('/', '_').Replace('\', '_')
+            $perf = $compteursPerf | Where-Object { $_.Name -eq $instance } | Select-Object -First 1
+
+            if ($perf) {
+                $recu += $perf.BytesReceivedPersec
+                $envoye += $perf.BytesSentPersec
             }
         }
     } catch { }

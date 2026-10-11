@@ -106,6 +106,12 @@ Deux limites : l'interface Tailscale est exclue du comptage pour ne pas compter 
 trafic qui passe deja par le Wi-Fi, et le total inclut tout ce que fait la machine, donc aussi
 Windows Update et les relevés du tableau de bord lui-meme, pas seulement la navigation des eleves.
 
+Tous les pilotes n'alimentent pas `Get-NetAdapterStatistics` : la carte Realtek RTL8723AE des
+postes renvoie des compteurs vides, alors que l'Ethernet du meme poste repond. Le releve bascule
+donc sur `Win32_PerfRawData_Tcpip_NetworkInterface`, dont les valeurs brutes sont cumulatives
+malgre le suffixe `PerSec`. `diagnostiquer_reseau.ps1` montre, pour un poste, quelles cartes sont
+retenues et laquelle des deux sources repond.
+
 ## Performances
 
 WinRM encode ses echanges en Base64, ce qui rend chaque transfert couteux quelle que soit la
