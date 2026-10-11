@@ -50,7 +50,7 @@ la resolution comme compte local sur la machine distante).
 | 3 | `corriger_scratch.ps1` | Scratch s'installe par utilisateur (`AppData\Local\Programs`) : copie l'installation vers le profil Default pour que les nouveaux comptes l'aient. |
 | 4 | `regler_barre_des_taches.ps1` | Vide la barre des taches (icones epinglees, bouton Affichage des taches, barre de recherche). |
 | 5 | `barre_des_taches_raccourcis.ps1` | Y epingle Firefox, Scratch, LibreOffice, Acrobat. A lancer **apres** le 4, qui vide tout. |
-| 6 | `bureau_raccourcis.ps1` | Nettoie les bureaux, pose les 4 icones, fond d'ecran noir, icones alignees. |
+| 6 | `bureau_raccourcis.ps1` | Nettoie les bureaux, pose les 4 icones, fond d'ecran noir, icones alignees. Le nettoyage epargne « Deposer mon devoir.lnk », qui vit dans le meme Public Desktop. |
 | 7 | `configurer_dossier_depot.ps1` | Cree `C:\Depots` et l'icone « Deposer mon devoir ». |
 | 8 | `deployer_utilisateurs.ps1` | Cree les comptes eleves (acces RDP, groupe `Eleves`, dossier de depot prive). **En dernier**, pour que chaque compte herite de tout ce qui precede. |
 

@@ -34,7 +34,13 @@ $scriptDistant = {
         ForEach-Object { Join-Path $_.FullName "Desktop" } |
         Where-Object { Test-Path $_ }
 
+    # Le raccourci de depot vit lui aussi dans le Public Desktop : il faut l'epargner, sinon
+    # relancer ce script apres configurer_dossier_depot.ps1 l'efface et les eleves n'ont plus
+    # aucun moyen de rendre leur travail.
+    $aPreserver = @("Deposer mon devoir.lnk")
+
     Get-ChildItem -Path $bureauxExistants -Include "*.lnk", "*.url" -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $aPreserver -notcontains $_.Name } |
         Remove-Item -Force -ErrorAction SilentlyContinue
 
     # $env:APPDATA pointerait vers le profil du compte admin utilisé pour la connexion à distance,
