@@ -92,6 +92,20 @@ La recuperation ne descend que dans les sous-dossiers au nom des eleves. Un fich
 racine de `C:\Depots` appartient au dispositif (`_Deposer.ps1`) : le ramasser reviendrait a le
 supprimer du poste et a priver toute la classe du depot.
 
+## Consommation reseau
+
+Le tableau de bord affiche par poste le volume recu et envoye, et le total de la classe. Utile
+quand la salle passe par le partage de connexion d'un telephone.
+
+Les compteurs viennent de la carte reseau physique et comptent depuis le demarrage du poste ;
+le tableau de bord en retient un repere a son premier releve et n'affiche que l'ecart depuis.
+Le bouton « Compteurs reseau a zero » redefinit ce repere, typiquement en debut de cours. Un
+poste qui redemarre voit son repere repris automatiquement.
+
+Deux limites : l'interface Tailscale est exclue du comptage pour ne pas compter deux fois un
+trafic qui passe deja par le Wi-Fi, et le total inclut tout ce que fait la machine, donc aussi
+Windows Update et les relevés du tableau de bord lui-meme, pas seulement la navigation des eleves.
+
 ## Performances
 
 WinRM encode ses echanges en Base64, ce qui rend chaque transfert couteux quelle que soit la

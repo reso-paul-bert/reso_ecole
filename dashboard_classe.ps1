@@ -109,10 +109,28 @@ $scriptEtat = {
         }
     }
 
+    # Compteurs de la carte reseau physique. Tailscale est exclu : son trafic transite deja par
+    # le Wi-Fi et serait compte deux fois.
+    $recu = 0
+    $envoye = 0
+    try {
+        $cartes = Get-NetAdapter -Physical -ErrorAction SilentlyContinue |
+            Where-Object { $_.Status -eq "Up" -and $_.InterfaceDescription -notmatch "Tailscale" }
+        foreach ($carte in $cartes) {
+            $stats = Get-NetAdapterStatistics -Name $carte.Name -ErrorAction SilentlyContinue
+            if ($stats) {
+                $recu += $stats.ReceivedBytes
+                $envoye += $stats.SentBytes
+            }
+        }
+    } catch { }
+
     [pscustomobject]@{
         Connecte = $nomActif
         Apps     = $apps
         Devoirs  = $devoirs
+        Recu     = $recu
+        Envoye   = $envoye
     }
 }
 
@@ -135,6 +153,17 @@ function Test-Port($ip, $numeroPort, $delaiMs = 700) {
 # Les sessions sont conservees d'une actualisation a l'autre : ouvrir une session WinRM coute
 # une a trois secondes, ce qui dominait entierement le temps de collecte.
 $sessions = @{}
+
+# Repere de consommation reseau, pris au premier releve et remis a zero par le bouton dedie.
+# Les compteurs de Windows comptent depuis le demarrage du poste ; sans repere, ils melangeraient
+# le cours en cours avec tout ce qui a precede.
+$reperesReseau = @{}
+
+function Formater-Octets($octets) {
+    if ($octets -ge 1GB) { return "{0:N1} Go" -f ($octets / 1GB) }
+    if ($octets -ge 1MB) { return "{0:N0} Mo" -f ($octets / 1MB) }
+    return "{0:N0} Ko" -f ($octets / 1KB)
+}
 
 function Obtenir-Session($ip) {
     $existante = $sessions[$ip]
@@ -184,6 +213,14 @@ function Lire-Etat {
         foreach ($reponse in $reponses) {
             $ip = $reponse.PSComputerName
             $nom = ($machines | Where-Object { $_.PosteActuel.Trim() -eq $ip } | Select-Object -First 1).NouveauNom.Trim()
+
+            # Premier releve, ou compteurs repartis de zero apres un redemarrage du poste
+            if (-not $reperesReseau.ContainsKey($ip) -or
+                $reponse.Recu -lt $reperesReseau[$ip].Recu -or
+                $reponse.Envoye -lt $reperesReseau[$ip].Envoye) {
+                $reperesReseau[$ip] = [pscustomobject]@{ Recu = $reponse.Recu; Envoye = $reponse.Envoye }
+            }
+
             $resultats[$ip] = [pscustomobject]@{
                 Nom      = $nom
                 Ip       = $ip
@@ -191,6 +228,8 @@ function Lire-Etat {
                 Connecte = $reponse.Connecte
                 Apps     = @($reponse.Apps)
                 Devoirs  = @($reponse.Devoirs)
+                Recu     = $reponse.Recu - $reperesReseau[$ip].Recu
+                Envoye   = $reponse.Envoye - $reperesReseau[$ip].Envoye
             }
         }
     }
@@ -318,6 +357,8 @@ function Construire-Html($etat, $message) {
             ($poste.Devoirs | ForEach-Object { "<li>" + [System.Web.HttpUtility]::HtmlEncode($_) + "</li>" }) -join ""
         } else { "<li class='vide'>rien rendu</li>" }
 
+        $reseau = "<p class='reseau'>&darr; $(Formater-Octets $poste.Recu) &nbsp; &uarr; $(Formater-Octets $poste.Envoye)</p>"
+
         $bouton = if ($poste.Connecte) {
             "<a class='bouton' href='/recuperer?poste=$([uri]::EscapeDataString($poste.Nom))&eleve=$([uri]::EscapeDataString($poste.Connecte))'>Recuperer les devoirs de cet eleve</a>"
         } else {
@@ -329,6 +370,7 @@ function Construire-Html($etat, $message) {
   <h2>$nom <span class="pastille verte"></span></h2>
   <p class="ip">$($poste.Ip)</p>
   <p class="$classe">$connecte</p>
+  $reseau
   <h3>Applications ouvertes</h3>
   <ul>$listeApps</ul>
   <h3>Devoirs en attente</h3>
@@ -340,6 +382,10 @@ function Construire-Html($etat, $message) {
 
     $blocMessage = if ($message) { "<div class='message'>" + [System.Web.HttpUtility]::HtmlEncode($message) + "</div>" } else { "" }
     $horodatage = Get-Date -Format "HH:mm:ss"
+
+    $totalRecu = ($etat | Where-Object { $_.Etat -eq "ok" } | Measure-Object -Property Recu -Sum).Sum
+    $totalEnvoye = ($etat | Where-Object { $_.Etat -eq "ok" } | Measure-Object -Property Envoye -Sum).Sum
+    $totalReseau = "Forfait consomme depuis la remise a zero : &darr; $(Formater-Octets $totalRecu) &nbsp; &uarr; $(Formater-Octets $totalEnvoye)"
 
     return @"
 <!doctype html>
@@ -363,6 +409,8 @@ function Construire-Html($etat, $message) {
   .ip { color:#6c7185; font-size:12px; margin:0 0 10px; }
   .connecte { color:#5fd18c; font-weight:600; margin:0; }
   .libre { color:#6c7185; margin:0; }
+  .reseau { color:#9aa0b4; font-size:12px; margin:6px 0 0; font-variant-numeric:tabular-nums; }
+  .total { color:#9aa0b4; font-size:13px; margin:0 0 16px; font-variant-numeric:tabular-nums; }
   ul { margin:0; padding-left:18px; font-size:13px; line-height:1.5; }
   li.vide, p.vide { color:#6c7185; font-style:italic; list-style:none; margin-left:-18px; }
   p.vide { margin:0; }
@@ -383,10 +431,12 @@ function Construire-Html($etat, $message) {
   <h1>Tableau de bord - Classe</h1>
   <div class="actions">
     <a class="bouton principal" href="/recuperer-tout">Tout recuperer</a>
+    <a class="bouton" href="/reseau-zero">Compteurs reseau a zero</a>
     <a class="bouton" href="/?force=1">Actualiser</a>
   </div>
 </header>
 <p class="maj">Mis a jour a $horodatage - actualisation automatique toutes les $intervalleSecondes s</p>
+<p class="total">$totalReseau</p>
 $blocMessage
 <div class="grille">
 $cartes
@@ -476,6 +526,13 @@ while ($listener.IsListening) {
             if ($echecs.Count -gt 0) { $message += " Postes injoignables : " + ($echecs -join ", ") + "." }
             $etat = Lire-Etat
             $dateEtat = Get-Date
+            $redirection = $true
+        }
+        "/reseau-zero" {
+            $reperesReseau.Clear()
+            $etat = Lire-Etat
+            $dateEtat = Get-Date
+            $message = "Compteurs reseau remis a zero."
             $redirection = $true
         }
         default {
