@@ -116,37 +116,94 @@ $scriptEtat = {
     }
 }
 
+# Test-NetConnection met plus d'une seconde par poste, meme quand il repond. Une connexion TCP
+# brute avec delai court donne la meme information en quelques millisecondes.
+function Test-Port($ip, $numeroPort, $delaiMs = 700) {
+    $client = New-Object System.Net.Sockets.TcpClient
+    try {
+        $tentative = $client.BeginConnect($ip, $numeroPort, $null, $null)
+        if (-not $tentative.AsyncWaitHandle.WaitOne($delaiMs)) { return $false }
+        $client.EndConnect($tentative)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $client.Close()
+    }
+}
+
+# Les sessions sont conservees d'une actualisation a l'autre : ouvrir une session WinRM coute
+# une a trois secondes, ce qui dominait entierement le temps de collecte.
+$sessions = @{}
+
+function Obtenir-Session($ip) {
+    $existante = $sessions[$ip]
+    if ($existante -and $existante.State -eq "Opened") { return $existante }
+
+    if ($existante) {
+        Remove-PSSession $existante -ErrorAction SilentlyContinue
+        $sessions.Remove($ip)
+    }
+
+    try {
+        $nouvelle = New-PSSession -ComputerName $ip -Credential $credential -ErrorAction Stop
+        $sessions[$ip] = $nouvelle
+        return $nouvelle
+    } catch {
+        return $null
+    }
+}
+
 function Lire-Etat {
-    $resultats = @()
     $exclus = @(Lire-Exclusions)
+    $resultats = @{}
+    $aInterroger = @()
 
     foreach ($machine in $machines) {
         $ip = $machine.PosteActuel.Trim()
         $nom = $machine.NouveauNom.Trim()
 
-        $enLigne = Test-NetConnection -ComputerName $ip -Port 5985 -InformationLevel Quiet -WarningAction SilentlyContinue
-
-        if (-not $enLigne) {
-            $resultats += [pscustomobject]@{ Nom = $nom; Ip = $ip; Etat = "hors-ligne" }
+        if (-not (Test-Port $ip 5985)) {
+            $resultats[$ip] = [pscustomobject]@{ Nom = $nom; Ip = $ip; Etat = "hors-ligne" }
             continue
         }
 
-        try {
-            $infos = Invoke-Command -ComputerName $ip -Credential $credential -ScriptBlock $scriptEtat -ArgumentList (, $exclus) -ErrorAction Stop
-            $resultats += [pscustomobject]@{
-                Nom      = $nom
-                Ip       = $ip
-                Etat     = "ok"
-                Connecte = $infos.Connecte
-                Apps     = @($infos.Apps)
-                Devoirs  = @($infos.Devoirs)
-            }
-        } catch {
-            $resultats += [pscustomobject]@{ Nom = $nom; Ip = $ip; Etat = "erreur" }
+        $session = Obtenir-Session $ip
+        if ($session) {
+            $aInterroger += $session
+        } else {
+            $resultats[$ip] = [pscustomobject]@{ Nom = $nom; Ip = $ip; Etat = "erreur" }
         }
     }
 
-    return $resultats
+    # Un seul appel pour tous les postes : Invoke-Command interroge les sessions en parallele,
+    # la collecte dure donc le temps du poste le plus lent et non la somme des sept.
+    if ($aInterroger.Count -gt 0) {
+        $reponses = Invoke-Command -Session $aInterroger -ScriptBlock $scriptEtat -ArgumentList (, $exclus) -ErrorAction SilentlyContinue
+
+        foreach ($reponse in $reponses) {
+            $ip = $reponse.PSComputerName
+            $nom = ($machines | Where-Object { $_.PosteActuel.Trim() -eq $ip } | Select-Object -First 1).NouveauNom.Trim()
+            $resultats[$ip] = [pscustomobject]@{
+                Nom      = $nom
+                Ip       = $ip
+                Etat     = "ok"
+                Connecte = $reponse.Connecte
+                Apps     = @($reponse.Apps)
+                Devoirs  = @($reponse.Devoirs)
+            }
+        }
+    }
+
+    # Remise dans l'ordre du fichier, et postes sans reponse marques en erreur
+    return $machines | ForEach-Object {
+        $ip = $_.PosteActuel.Trim()
+        if ($resultats.ContainsKey($ip)) {
+            $resultats[$ip]
+        } else {
+            [pscustomobject]@{ Nom = $_.NouveauNom.Trim(); Ip = $ip; Etat = "erreur" }
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -157,48 +214,79 @@ function Recuperer-Devoirs($ip, $nomPoste, $eleve) {
     $racineDestination = Join-Path $dossierDevoirs $nomPoste
     New-Item -Path $racineDestination -ItemType Directory -Force | Out-Null
 
-    $copies = 0
-    try {
-        $session = New-PSSession -ComputerName $ip -Credential $credential -ErrorAction Stop
+    $session = Obtenir-Session $ip
+    if (-not $session) { return -1 }
 
-        $fichiers = Invoke-Command -Session $session -ScriptBlock {
+    $archiveLocale = Join-Path $env:TEMP "depots_$nomPoste.zip"
+    Remove-Item $archiveLocale -Force -ErrorAction SilentlyContinue
+
+    try {
+        # L'archive est construite sur le poste : un seul transfert au lieu d'un par fichier.
+        # WinRM encode tout en Base64, donc chaque transfert coute cher quelle que soit la taille.
+        $paquet = Invoke-Command -Session $session -ScriptBlock {
             param($filtre)
+
             $racine = "C:\Depots"
-            if ($filtre) { $racine = "C:\Depots\$filtre" }
-            if (-not (Test-Path $racine)) { return @() }
-            Get-ChildItem $racine -File -Recurse -ErrorAction SilentlyContinue
+            $cible = if ($filtre) { Join-Path $racine $filtre } else { $racine }
+            if (-not (Test-Path $cible)) { return $null }
+
+            # Les devoirs vivent toujours dans un sous-dossier au nom de l'eleve. Ce qui traine a
+            # la racine appartient au dispositif lui-meme (_Deposer.ps1) et ne doit jamais etre
+            # ramasse : il serait emporte, puis supprime, privant les eleves de tout depot.
+            $fichiers = Get-ChildItem $cible -File -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.Directory.FullName -ne $racine }
+
+            if (@($fichiers).Count -eq 0) { return $null }
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = Join-Path $env:TEMP "depots_$([Guid]::NewGuid().ToString('N')).zip"
+            $archive = [System.IO.Compression.ZipFile]::Open($zip, 'Create')
+
+            $contenu = @()
+            foreach ($fichier in $fichiers) {
+                # Chemin relatif a C:\Depots : l'archive porte donc <Eleve>\<fichier>, ce qui
+                # reconstitue l'arborescence a l'extraction, que l'on vise un eleve ou tous.
+                $relatif = $fichier.FullName.Substring($racine.Length + 1)
+                [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $fichier.FullName, $relatif) | Out-Null
+                $contenu += [pscustomobject]@{
+                    Relatif = $relatif
+                    Complet = $fichier.FullName
+                    Taille  = $fichier.Length
+                }
+            }
+            $archive.Dispose()
+
+            [pscustomobject]@{ Archive = $zip; Contenu = $contenu }
         } -ArgumentList $eleve
 
+        if (-not $paquet) { return 0 }
+
+        Copy-Item -FromSession $session -Path $paquet.Archive -Destination $archiveLocale -Force -ErrorAction Stop
+        Expand-Archive -Path $archiveLocale -DestinationPath $racineDestination -Force -ErrorAction Stop
+
+        # Rien n'est supprime sur le poste avant d'avoir verifie chaque fichier extrait.
+        $copies = 0
         $aSupprimer = @()
-        foreach ($fichier in $fichiers) {
-            try {
-                # Le dossier parent du fichier dans C:\Depots porte le nom du compte eleve
-                $nomEleve = Split-Path (Split-Path $fichier.FullName -Parent) -Leaf
-                $destination = Join-Path $racineDestination $nomEleve
-                New-Item -Path $destination -ItemType Directory -Force | Out-Null
-
-                Copy-Item -FromSession $session -Path $fichier.FullName -Destination $destination -Force -ErrorAction Stop
-                $chemin = Join-Path $destination $fichier.Name
-                if ((Test-Path $chemin) -and (Get-Item $chemin).Length -eq $fichier.Length) {
-                    $copies++
-                    $aSupprimer += $fichier.FullName
-                }
-            } catch { }
+        foreach ($entree in $paquet.Contenu) {
+            $local = Join-Path $racineDestination $entree.Relatif
+            if ((Test-Path $local) -and (Get-Item $local).Length -eq $entree.Taille) {
+                $copies++
+                $aSupprimer += $entree.Complet
+            }
         }
 
-        if ($aSupprimer.Count -gt 0) {
-            Invoke-Command -Session $session -ScriptBlock {
-                param($liste)
-                foreach ($chemin in $liste) { Remove-Item -Path $chemin -Force -ErrorAction SilentlyContinue }
-            } -ArgumentList (, $aSupprimer)
-        }
+        Invoke-Command -Session $session -ScriptBlock {
+            param($liste, $zip)
+            foreach ($chemin in $liste) { Remove-Item -Path $chemin -Force -ErrorAction SilentlyContinue }
+            Remove-Item -Path $zip -Force -ErrorAction SilentlyContinue
+        } -ArgumentList $aSupprimer, $paquet.Archive
 
-        Remove-PSSession $session
+        return $copies
     } catch {
         return -1
+    } finally {
+        Remove-Item $archiveLocale -Force -ErrorAction SilentlyContinue
     }
-
-    return $copies
 }
 
 # ---------------------------------------------------------------------------
@@ -419,5 +507,6 @@ while ($listener.IsListening) {
     # Libere le port meme en cas d'interruption, sinon la prochaine execution le trouve occupe.
     if ($listener.IsListening) { $listener.Stop() }
     $listener.Close()
+    $sessions.Values | ForEach-Object { Remove-PSSession $_ -ErrorAction SilentlyContinue }
     Write-Host "Tableau de bord arrete, port $port libere." -ForegroundColor Cyan
 }

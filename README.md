@@ -62,7 +62,7 @@ la creation des comptes vient en dernier : un profil deja cree n'herite pas retr
 
 | Script | Role |
 |---|---|
-| `dashboard_classe.ps1` | Tableau de bord HTML auto-actualise : qui est connecte, logiciels ouverts, devoirs rendus. Cree aussi des raccourcis de prise de controle (shadow RDP, sans deconnecter l'eleve). |
+| `dashboard_classe.ps1` | Tableau de bord HTML auto-actualise : qui est connecte, logiciels ouverts, devoirs rendus, avec boutons de recuperation. Cree aussi des raccourcis de prise de controle (shadow RDP, sans deconnecter l'eleve). |
 | `recuperer_devoirs.ps1` | Rapatrie les depots vers `Devoirs_Recuperes/<Poste>/<Eleve>/` et nettoie la source. |
 | `redemarrer_pcs.ps1` | Redemarre tous les postes. |
 | `supprimer_utilisateurs.ps1` | Supprime comptes et profils (remise a zero). Detruit les fichiers des profils. |
@@ -87,6 +87,24 @@ dans `configurer_dossier_depot.ps1`) sont acceptees. La verification est faite p
 seulement par le filtre du dialogue, car celui-ci se contourne en tapant un nom a la main et ne
 s'applique pas au glisser-deposer. Sans elle, un eleve peut rendre n'importe quel fichier du
 disque, executables compris.
+
+La recuperation ne descend que dans les sous-dossiers au nom des eleves. Un fichier pose a la
+racine de `C:\Depots` appartient au dispositif (`_Deposer.ps1`) : le ramasser reviendrait a le
+supprimer du poste et a priver toute la classe du depot.
+
+## Performances
+
+WinRM encode ses echanges en Base64, ce qui rend chaque transfert couteux quelle que soit la
+taille du fichier, et l'ouverture d'une session prend une a trois secondes. Trois mesures en
+decoulent :
+
+- le tableau de bord garde ses sessions ouvertes d'une actualisation a l'autre ;
+- il interroge les postes en parallele (un `Invoke-Command` sur plusieurs sessions) plutot qu'en
+  file ;
+- la recuperation compresse les devoirs sur le poste et ne transfere qu'une archive.
+
+La disponibilite d'un poste est testee par une connexion TCP brute avec delai court :
+`Test-NetConnection` demande plus d'une seconde par machine, meme quand elle repond.
 
 ## Diagnostics
 

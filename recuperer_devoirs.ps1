@@ -33,7 +33,14 @@ foreach ($ligne in $postes) {
 
     try {
         $session = New-PSSession -ComputerName $poste -Credential $credential -ErrorAction Stop
-        $fichiers = Invoke-Command -Session $session -ScriptBlock { Get-ChildItem "C:\Depots" -File -Recurse -ErrorAction SilentlyContinue }
+
+        # Les devoirs vivent toujours dans un sous-dossier au nom de l'élève. Ce qui traîne à la
+        # racine appartient au dispositif lui-même (_Deposer.ps1) : l'emporter reviendrait à le
+        # supprimer du poste et à priver les élèves de tout moyen de rendre leur travail.
+        $fichiers = Invoke-Command -Session $session -ScriptBlock {
+            Get-ChildItem "C:\Depots" -File -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.Directory.FullName -ne "C:\Depots" }
+        }
 
         if (-not $fichiers -or $fichiers.Count -eq 0) {
             Write-Host "  Rien à récupérer." -ForegroundColor Yellow
