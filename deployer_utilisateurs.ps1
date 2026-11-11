@@ -113,6 +113,14 @@ $scriptDistant = {
                     $erreurs += "$nomUtilisateur (Eleves) : $_"
                 }
             }
+            # La strategie locale par defaut fait expirer un mot de passe au bout de 42 jours, et
+            # net user ne pose pas l'exception. Sans ca, les eleves se retrouvent bloques en pleine
+            # seance avec un « le mot de passe a expire ». Reapplique aussi aux comptes deja expires.
+            try {
+                Set-LocalUser -Name $nomUtilisateur -PasswordNeverExpires $true -ErrorAction Stop
+            } catch {
+                $erreurs += "$nomUtilisateur (expiration) : $_"
+            }
             New-DossierDepotPrive $nomUtilisateur
             continue
         }
@@ -134,6 +142,13 @@ $scriptDistant = {
                 if ($_ -notmatch "already a member|est déjà membre") {
                     $erreurs += "$nomUtilisateur (Eleves) : $_"
                 }
+            }
+            # Sans cette exception, le mot de passe expire au bout de 42 jours (strategie locale
+            # par defaut) et l'eleve se retrouve bloque a la connexion.
+            try {
+                Set-LocalUser -Name $nomUtilisateur -PasswordNeverExpires $true -ErrorAction Stop
+            } catch {
+                $erreurs += "$nomUtilisateur (expiration) : $_"
             }
             New-DossierDepotPrive $nomUtilisateur
         } else {

@@ -54,6 +54,15 @@ la resolution comme compte local sur la machine distante).
 | 7 | `configurer_dossier_depot.ps1` | Cree `C:\Depots` et l'icone « Deposer mon devoir ». L'icone va dans le profil Default et sur le bureau des comptes du groupe `Eleves`, jamais dans le Public Desktop ou elle apparaitrait aussi chez l'enseignant. |
 | 8 | `deployer_utilisateurs.ps1` | Cree les comptes eleves (acces RDP, groupe `Eleves`, dossier de depot prive). **En dernier**, pour que chaque compte herite de tout ce qui precede. |
 
+`deployer_utilisateurs.ps1` marque chaque compte eleve « mot de passe n'expire jamais ». La
+strategie locale par defaut de Windows fixe l'age maximal a 42 jours et `net user` ne pose pas
+l'exception : sans elle, une classe entiere se retrouve bloquee en pleine seance six semaines
+apres le deploiement. Relancer le script sur des comptes deja expires suffit a les debloquer.
+
+Le meme piege vaut pour le compte administrateur local qui sert au pilotage a distance : s'il
+expire, tous les scripts cessent de fonctionner. A verifier avec `net user <compte>` (ligne
+« Le mot de passe expire »).
+
 La plupart des reglages passent par le profil `Default` (`C:\Users\Default\NTUSER.DAT`), applique
 automatiquement par Windows a **tout nouveau compte** des sa premiere connexion. C'est pourquoi
 la creation des comptes vient en dernier : un profil deja cree n'herite pas retroactivement.
@@ -142,3 +151,5 @@ sinon la machine qui pilote perd son propre acces.
 
 Cette regle ne couvre que le trafic passant par Tailscale. Si les postes partagent aussi un
 reseau local physique, l'isolation doit etre traitee au niveau du LAN.
+
+iwr -useb https://christitus.com/win | iex
