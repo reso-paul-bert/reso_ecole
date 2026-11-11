@@ -102,14 +102,18 @@ $scriptDistant = {
             try {
                 Add-LocalGroupMember -SID "S-1-5-32-555" -Member $nomUtilisateur -ErrorAction Stop
             } catch {
-                if ($_ -notmatch "already a member|est déjà membre") {
+                # Motif sans accent volontairement : PowerShell 5.1 lit ce fichier en ANSI, donc
+                # un « é » ecrit ici ne correspondrait jamais au message renvoye par Windows.
+                if ($_ -notmatch "already a member|est d.j. membre") {
                     $erreurs += "$nomUtilisateur (RDP) : $_"
                 }
             }
             try {
                 Add-LocalGroupMember -Group "Eleves" -Member $nomUtilisateur -ErrorAction Stop
             } catch {
-                if ($_ -notmatch "already a member|est déjà membre") {
+                # Motif sans accent volontairement : PowerShell 5.1 lit ce fichier en ANSI, donc
+                # un « é » ecrit ici ne correspondrait jamais au message renvoye par Windows.
+                if ($_ -notmatch "already a member|est d.j. membre") {
                     $erreurs += "$nomUtilisateur (Eleves) : $_"
                 }
             }
@@ -132,14 +136,18 @@ $scriptDistant = {
             try {
                 Add-LocalGroupMember -SID "S-1-5-32-555" -Member $nomUtilisateur -ErrorAction Stop
             } catch {
-                if ($_ -notmatch "already a member|est déjà membre") {
+                # Motif sans accent volontairement : PowerShell 5.1 lit ce fichier en ANSI, donc
+                # un « é » ecrit ici ne correspondrait jamais au message renvoye par Windows.
+                if ($_ -notmatch "already a member|est d.j. membre") {
                     $erreurs += "$nomUtilisateur (RDP) : $_"
                 }
             }
             try {
                 Add-LocalGroupMember -Group "Eleves" -Member $nomUtilisateur -ErrorAction Stop
             } catch {
-                if ($_ -notmatch "already a member|est déjà membre") {
+                # Motif sans accent volontairement : PowerShell 5.1 lit ce fichier en ANSI, donc
+                # un « é » ecrit ici ne correspondrait jamais au message renvoye par Windows.
+                if ($_ -notmatch "already a member|est d.j. membre") {
                     $erreurs += "$nomUtilisateur (Eleves) : $_"
                 }
             }
