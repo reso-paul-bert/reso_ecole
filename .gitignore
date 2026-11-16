@@ -15,3 +15,6 @@ Devoirs_Recuperes/
 # Sorties generees
 dashboard.html
 Controle_Postes/
+
+# Verrous crees par LibreOffice quand un CSV est ouvert
+.~lock.*#

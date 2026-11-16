@@ -37,6 +37,8 @@ msedgewebview2
 DefenderSessionHelper
 DSDFunctionKeyCtlService
 wsmprovhost
+StoreDesktopExtension
+msedge
 
 # --- Pilotes et utilitaires constructeur ---
 RAVCpl64
@@ -50,3 +52,6 @@ tailscale-ipn
 
 # LibreOffice apparait sous "soffice" ; "soffice.bin" est le meme programme en double
 soffice.bin
+
+#Adobe
+AdobeARM
